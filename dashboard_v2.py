@@ -31,7 +31,7 @@ st.markdown("""
 }
 
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #3B0764 0%, #4C1D95 100%) !important;
+    background: linear-gradient(180deg, #0A2540 0%, #0D3260 100%) !important;
     border-right: none !important;
 }
 
@@ -47,14 +47,14 @@ st.markdown("""
     width: 120px;
     height: 120px;
     border-radius: 50%;
-    border: 3px solid #A78BFA;
+    border: 3px solid #00B4D8;
     margin-bottom: 10px;
 }
 
 .sidebar-app-title {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #A78BFA !important;
+    color: #00B4D8 !important;
     margin: 0;
 }
 
@@ -91,7 +91,7 @@ st.markdown("""
 }
 
 [data-testid="stSidebar"] .stRadio label:hover {
-    color: #A78BFA !important;
+    color: #00B4D8 !important;
 }
 
 .page-header {
@@ -125,7 +125,7 @@ st.markdown("""
     padding: 16px 18px;
     border: 1px solid #E2E8F0;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    border-top: 4px solid #7C3AED;
+    border-top: 4px solid #0F3460;
     height: 100%;
 }
 
@@ -152,7 +152,7 @@ st.markdown("""
     line-height: 1;
 }
 
-.kpi-value.verde { color: #7C3AED; }
+.kpi-value.verde { color: #0F3460; }
 .kpi-value.amarillo { color: #D97706; }
 .kpi-value.rojo { color: #DC2626; }
 
@@ -167,7 +167,7 @@ st.markdown("""
     font-size: 0.82rem;
 }
 
-.alarma-verde { background: #F5F3FF; border-color: #7C3AED; color: #5B21B6; }
+.alarma-verde { background: #F0F7FF; border-color: #0F3460; color: #0A2347; }
 .alarma-amarilla { background: #FFFBEB; border-color: #D97706; color: #78350F; }
 .alarma-roja { background: #FEF2F2; border-color: #DC2626; color: #7F1D1D; }
 
@@ -202,7 +202,7 @@ st.markdown("""
 .modo-standby { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
 
 .stButton > button {
-    background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%) !important;
+    background: linear-gradient(135deg, #0F3460 0%, #0D2D56 100%) !important;
     color: white !important;
     border: none !important;
     border-radius: 8px !important;
@@ -211,11 +211,11 @@ st.markdown("""
 }
 
 .stButton > button:hover {
-    background: linear-gradient(135deg, #6D28D9 0%, #5B21B6 100%) !important;
+    background: linear-gradient(135deg, #0D2D56 0%, #0A2347 100%) !important;
 }
 
 .login-wrap {
-    background: linear-gradient(135deg, #F5F3FF 0%, #F0FDF4 100%);
+    background: linear-gradient(135deg, #F0F7FF 0%, #F0FDF4 100%);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -301,7 +301,7 @@ def crear_cuenta(email, password, nombre, rol):
 # ── LOGIN ──
 def pagina_login():
     logo = get_logo()
-    logo_html = f'<img src="data:image/png;base64,{logo}" style="width:110px;height:110px;border-radius:50%;border:3px solid #7C3AED;margin-bottom:12px;">' if logo else ""
+    logo_html = f'<img src="data:image/png;base64,{logo}" style="width:110px;height:110px;border-radius:50%;border:3px solid #0F3460;margin-bottom:12px;">' if logo else ""
 
     col1, col2, col3 = st.columns([1,1.1,1])
     with col2:
@@ -347,7 +347,7 @@ def pagina_login():
 # ── SIDEBAR ──
 def sidebar():
     logo = get_logo()
-    logo_html = f'<img src="data:image/png;base64,{logo}" style="width:120px;height:120px;border-radius:50%;border:3px solid #A78BFA;margin-bottom:10px;">' if logo else ""
+    logo_html = f'<img src="data:image/png;base64,{logo}" style="width:120px;height:120px;border-radius:50%;border:3px solid #00B4D8;margin-bottom:10px;">' if logo else ""
     user = st.session_state.user
 
     with st.sidebar:
@@ -461,8 +461,8 @@ def panel_principal():
         fig.add_trace(go.Scatter(
             x=list(range(len(df))), y=df["corriente_rms"].tolist(),
             mode="lines+markers",
-            line=dict(color="#7C3AED", width=2.5),
-            marker=dict(size=7, color="#7C3AED"),
+            line=dict(color="#0F3460", width=2.5),
+            marker=dict(size=7, color="#0F3460"),
             fill="tozeroy", fillcolor="rgba(5,150,105,0.08)",
             name="Corriente RMS"
         ))
@@ -544,7 +544,7 @@ def pagina_equipos():
         <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:18px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <strong style="font-size:0.95rem;">{eq_id}</strong>
-                <span style="background:#F5F3FF;color:#7C3AED;padding:3px 12px;border-radius:20px;font-size:0.72rem;font-weight:600;">{n} prueba(s)</span>
+                <span style="background:#F0F7FF;color:#0F3460;padding:3px 12px;border-radius:20px;font-size:0.72rem;font-weight:600;">{n} prueba(s)</span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:0.78rem;">
                 <div><span style="color:#718096">Marca</span><br><strong>{info.get('marca','—')}</strong></div>
