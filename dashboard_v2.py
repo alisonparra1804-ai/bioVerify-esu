@@ -4,538 +4,633 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 import time
-import io
+import base64
+import hashlib
+import os
 
-# ============================================================
-# CONFIGURACIÓN
-# ============================================================
 FIREBASE_URL = "https://verificacion-electrobisturi-default-rtdb.firebaseio.com"
-
-# Usuarios del sistema
-USERS = {
-    "aparrag3@est.ups.edu.ec": {
-        "password": "BioVerify2026",
-        "nombre": "Alison Parra",
-        "rol": "Estudiante"
-    },
-    "admin@bioVerify.com": {
-        "password": "admin2026",
-        "nombre": "Administrador",
-        "rol": "Admin"
-    }
-}
+TEMP_AMARILLA = 50
+TEMP_ROJA = 255
+ERROR_MAXIMO = 20
 
 st.set_page_config(
     page_title="BioVerify ESU",
-    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ============================================================
-# CSS PERSONALIZADO
-# ============================================================
 st.markdown("""
 <style>
-    /* Fondo principal */
-    .stApp {
-        background-color: #0A0E1A;
-        color: #E8EAF0;
-    }
-    
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #0D1117;
-        border-right: 1px solid #1E3A5F;
-    }
-    
-    /* Tarjetas de métricas */
-    [data-testid="stMetric"] {
-        background-color: #0D1B2A;
-        border: 1px solid #1E3A5F;
-        border-radius: 12px;
-        padding: 16px;
-    }
-    
-    /* Título principal */
-    .main-title {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #00BCD4;
-        letter-spacing: -0.5px;
-    }
-    
-    /* Subtítulo */
-    .sub-title {
-        font-size: 0.9rem;
-        color: #78909C;
-        margin-top: -10px;
-    }
-    
-    /* Badge de estado */
-    .badge-cumple {
-        background-color: #1B5E20;
-        color: #A5D6A7;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    
-    .badge-no-cumple {
-        background-color: #B71C1C;
-        color: #FFCDD2;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
-    /* Login card */
-    .login-card {
-        background-color: #0D1B2A;
-        border: 1px solid #1E3A5F;
-        border-radius: 16px;
-        padding: 40px;
-        max-width: 420px;
-        margin: auto;
-    }
+* { font-family: 'Inter', sans-serif !important; }
 
-    /* Botones */
-    .stButton > button {
-        background-color: #00BCD4;
-        color: #0A0E1A;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        padding: 10px 24px;
-        width: 100%;
-    }
-    
-    .stButton > button:hover {
-        background-color: #0097A7;
-        color: white;
-    }
+.stApp {
+    background-color: #F0F4F8 !important;
+    color: #1A202C !important;
+}
 
-    /* Divider */
-    hr {
-        border-color: #1E3A5F;
-    }
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #1A4731 0%, #145228 100%) !important;
+    border-right: none !important;
+}
 
-    /* Input fields */
-    .stTextInput > div > div > input {
-        background-color: #0D1B2A;
-        border: 1px solid #1E3A5F;
-        color: #E8EAF0;
-        border-radius: 8px;
-    }
+[data-testid="stSidebar"] * { color: #fff !important; }
+
+.sidebar-logo-wrap {
+    text-align: center;
+    padding: 28px 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+.sidebar-logo-wrap img {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 3px solid #34D399;
+    margin-bottom: 10px;
+}
+
+.sidebar-app-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #34D399 !important;
+    margin: 0;
+}
+
+.sidebar-app-sub {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.6) !important;
+    margin: 3px 0 0;
+}
+
+.user-info-box {
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 12px 16px;
+}
+
+.user-info-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff !important;
+    margin: 0;
+}
+
+.user-info-role {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.6) !important;
+    margin: 2px 0 0;
+}
+
+[data-testid="stSidebar"] .stRadio label {
+    color: rgba(255,255,255,0.85) !important;
+    font-size: 0.85rem !important;
+    padding: 6px 0 !important;
+}
+
+[data-testid="stSidebar"] .stRadio label:hover {
+    color: #34D399 !important;
+}
+
+.page-header {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px 24px;
+    margin-bottom: 18px;
+    border: 1px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.page-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #1A202C;
+    margin: 0;
+}
+
+.page-sub {
+    font-size: 0.78rem;
+    color: #718096;
+    margin: 2px 0 0;
+}
+
+.kpi-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 18px;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border-top: 4px solid #059669;
+    height: 100%;
+}
+
+.kpi-card.amarillo { border-top-color: #D97706; }
+.kpi-card.rojo { border-top-color: #DC2626; }
+.kpi-card.azul { border-top-color: #2563EB; }
+.kpi-card.gris { border-top-color: #64748B; }
+
+.kpi-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin: 0 0 6px;
+}
+
+.kpi-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1A202C;
+    margin: 0;
+    line-height: 1;
+}
+
+.kpi-value.verde { color: #059669; }
+.kpi-value.amarillo { color: #D97706; }
+.kpi-value.rojo { color: #DC2626; }
+
+.kpi-unit { font-size: 0.85rem; color: #718096; margin-left: 3px; }
+.kpi-sub { font-size: 0.7rem; color: #A0AEC0; margin: 5px 0 0; }
+
+.alarma-box {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    border-left: 5px solid;
+    font-size: 0.82rem;
+}
+
+.alarma-verde { background: #ECFDF5; border-color: #059669; color: #065F46; }
+.alarma-amarilla { background: #FFFBEB; border-color: #D97706; color: #78350F; }
+.alarma-roja { background: #FEF2F2; border-color: #DC2626; color: #7F1D1D; }
+
+.chart-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.chart-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin: 0 0 10px;
+}
+
+.modo-tag {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+.modo-corte { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+.modo-coag { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+.modo-standby { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
+
+.stButton > button {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.83rem !important;
+}
+
+.stButton > button:hover {
+    background: linear-gradient(135deg, #047857 0%, #065F46 100%) !important;
+}
+
+.login-wrap {
+    background: linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.form-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 40px;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+}
+
+.ts { font-size: 0.7rem; color: #A0AEC0; }
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================
-# FUNCIONES DE FIREBASE
-# ============================================================
-
-def get_firebase_data():
+# ── FIREBASE ──
+def fb_get(path):
     try:
-        url = f"{FIREBASE_URL}/equipos.json"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            return response.json()
-        return None
-    except:
-        return None
+        r = requests.get(f"{FIREBASE_URL}/{path}.json", timeout=5)
+        return r.json() if r.status_code == 200 else None
+    except: return None
 
-def get_equipos():
+def fb_put(path, data):
     try:
-        url = f"{FIREBASE_URL}/equipos.json"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200 and response.json():
-            return list(response.json().keys())
-        return []
-    except:
-        return []
+        r = requests.put(f"{FIREBASE_URL}/{path}.json", json=data, timeout=5)
+        return r.status_code == 200
+    except: return False
 
-def registrar_equipo(equipo_id, datos):
-    try:
-        url = f"{FIREBASE_URL}/equipos/{equipo_id}/info.json"
-        response = requests.put(url, json=datos, timeout=5)
-        return response.status_code == 200
-    except:
-        return False
-
-def parse_pruebas(data):
+def parse_pruebas():
+    data = fb_get("equipos")
     rows = []
-    if not data:
-        return pd.DataFrame()
-    for equipo_id, equipo_data in data.items():
-        if "pruebas" not in equipo_data:
-            continue
-        for prueba_id, prueba in equipo_data["pruebas"].items():
+    if not data: return pd.DataFrame()
+    for eq_id, eq_data in data.items():
+        if not isinstance(eq_data, dict): continue
+        for pr_id, pr in eq_data.get("pruebas", {}).items():
+            if not isinstance(pr, dict): continue
             rows.append({
-                "equipo": equipo_id,
-                "prueba": prueba_id,
-                "fecha": prueba.get("fecha", ""),
-                "hora_inicio": prueba.get("hora_inicio", ""),
-                "hora_fin": prueba.get("hora_fin", ""),
-                "duracion_seg": prueba.get("duracion_seg", 0),
-                "modo": prueba.get("modo", ""),
-                "corriente_rms": prueba.get("corriente_rms", 0),
-                "temperatura": prueba.get("temperatura", 0),
+                "equipo": eq_id, "prueba": pr_id,
+                "fecha": pr.get("fecha",""),
+                "modo": pr.get("modo",""),
+                "corriente_rms": float(pr.get("corriente_rms", 0)),
+                "temperatura": float(pr.get("temperatura", 0)),
+                "potencia_w": float(pr.get("potencia_w", pr.get("corriente_rms",0) * 110)),
+                "duracion_seg": float(str(pr.get("duracion_seg",0)).strip()),
             })
     return pd.DataFrame(rows)
 
-# ============================================================
-# SISTEMA DE LOGIN
-# ============================================================
+def get_logo():
+    for p in ["assets/LOGO.png","LOGO.png","/mnt/user-data/outputs/LOGO.png"]:
+        if os.path.exists(p):
+            with open(p,"rb") as f:
+                return base64.b64encode(f.read()).decode()
+    return None
 
-def login_page():
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
+def verificar_login(email, password):
+    hash_pw = hashlib.sha256(password.encode()).hexdigest()
+    # Admin por defecto
+    if email == "alison.parra@est.ups.edu.ec" and password == "BioVerify2026":
+        return True, {"nombre":"Alison Parra","rol":"Investigadora","email":email}
+    usuarios = fb_get("usuarios") or {}
+    for uid, u in usuarios.items():
+        if u.get("email") == email and u.get("password") == hash_pw:
+            return True, u
+    return False, None
+
+def crear_cuenta(email, password, nombre, rol):
+    uid = hashlib.md5(email.encode()).hexdigest()[:8]
+    usuarios = fb_get("usuarios") or {}
+    for u in usuarios.values():
+        if u.get("email") == email:
+            return False, "El correo ya esta registrado"
+    hash_pw = hashlib.sha256(password.encode()).hexdigest()
+    ok = fb_put(f"usuarios/{uid}", {
+        "email": email, "password": hash_pw,
+        "nombre": nombre, "rol": rol,
+        "creado": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    return ok, "ok"
+
+# ── LOGIN ──
+def pagina_login():
+    logo = get_logo()
+    logo_html = f'<img src="data:image/png;base64,{logo}" style="width:110px;height:110px;border-radius:50%;border:3px solid #059669;margin-bottom:12px;">' if logo else ""
+
+    col1, col2, col3 = st.columns([1,1.1,1])
     with col2:
-        st.markdown("""
-        <div style='text-align: center; margin-bottom: 30px;'>
-            <span style='font-size: 3rem;'>⚡</span>
-            <h1 style='color: #00BCD4; font-size: 2rem; margin: 0;'>BioVerify ESU</h1>
-            <p style='color: #78909C; font-size: 0.9rem;'>Sistema de Verificación de Electrobisturí</p>
-            <p style='color: #546E7A; font-size: 0.8rem;'>Universidad Politécnica Salesiana · 2026</p>
+        st.markdown(f"""
+        <div style="margin-top:50px;background:#fff;border-radius:20px;padding:40px;border:1px solid #E2E8F0;box-shadow:0 8px 32px rgba(0,0,0,0.08);text-align:center;">
+            {logo_html}
+            <h2 style="color:#1A202C;font-size:1.5rem;margin:0 0 4px;">BioVerify ESU</h2>
+            <p style="color:#718096;font-size:0.78rem;margin:0 0 28px;">Sistema de Verificacion de Electrobisturi · UPS Quito</p>
         </div>
         """, unsafe_allow_html=True)
 
-        with st.container():
-            st.markdown("**Correo electrónico**")
-            email = st.text_input("", placeholder="usuario@ejemplo.com", key="email_input", label_visibility="collapsed")
-            
-            st.markdown("**Contraseña**")
-            password = st.text_input("", placeholder="••••••••", type="password", key="pass_input", label_visibility="collapsed")
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            if st.button("Iniciar sesión", use_container_width=True):
-                if email in USERS and USERS[email]["password"] == password:
+        tab1, tab2 = st.tabs(["Iniciar sesion", "Crear cuenta"])
+        with tab1:
+            email = st.text_input("Correo", placeholder="usuario@ups.edu.ec", key="li_e")
+            pw = st.text_input("Contrasena", type="password", key="li_p")
+            if st.button("Ingresar", key="btn_in", use_container_width=True):
+                ok, user = verificar_login(email, pw)
+                if ok:
                     st.session_state.logged_in = True
-                    st.session_state.user_email = email
-                    st.session_state.user_nombre = USERS[email]["nombre"]
-                    st.session_state.user_rol = USERS[email]["rol"]
+                    st.session_state.user = user
                     st.rerun()
                 else:
-                    st.error("Correo o contraseña incorrectos")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("""
-        <p style='text-align: center; color: #546E7A; font-size: 0.75rem;'>
-        Alison N. Parra Guano · Carrera de Biomedicina · UPS Quito
-        </p>
-        """, unsafe_allow_html=True)
+                    st.error("Correo o contrasena incorrectos")
 
-# ============================================================
-# PÁGINA: NUEVO EQUIPO
-# ============================================================
-
-def pagina_nuevo_equipo():
-    st.markdown("## ➕ Registrar Nuevo Equipo")
-    st.markdown("Completa los datos del equipo electroquirúrgico a registrar.")
-    st.divider()
-
-    with st.form("form_nuevo_equipo"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            nombre = st.text_input("Nombre del equipo *", placeholder="ej. DINATECH-002")
-            marca = st.text_input("Marca *", placeholder="ej. DINATECH, VALMED, ERBE")
-            modelo = st.text_input("Modelo", placeholder="ej. ESU-300")
-            serie = st.text_input("Número de serie", placeholder="ej. SN-2024-001")
-        
-        with col2:
-            ubicacion = st.text_input("Ubicación", placeholder="ej. Quirófano 3, Lab Biomédica")
-            responsable = st.text_input("Responsable", placeholder="Nombre del técnico o biomédico")
-            ultimo_mant = st.date_input("Fecha último mantenimiento")
-            tipo = st.selectbox("Tipo de equipo", ["Electrobisturí real", "Simulador de prueba"])
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        submitted = st.form_submit_button("✅ Registrar equipo", use_container_width=True)
-        
-        if submitted:
-            if not nombre or not marca:
-                st.error("El nombre y la marca son obligatorios")
-            else:
-                datos = {
-                    "nombre": nombre,
-                    "marca": marca,
-                    "modelo": modelo,
-                    "serie": serie,
-                    "ubicacion": ubicacion,
-                    "responsable": responsable,
-                    "ultimo_mantenimiento": str(ultimo_mant),
-                    "tipo": tipo,
-                    "registrado_por": st.session_state.user_nombre,
-                    "fecha_registro": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                if registrar_equipo(nombre, datos):
-                    st.success(f"✅ Equipo **{nombre}** registrado correctamente en Firebase")
+        with tab2:
+            nombre = st.text_input("Nombre completo", key="rn")
+            email_r = st.text_input("Correo", key="re")
+            rol_r = st.selectbox("Rol", ["Biomedico","Investigador","Tecnico","Docente"], key="rr")
+            pw_r = st.text_input("Contrasena", type="password", key="rp1")
+            pw_r2 = st.text_input("Confirmar contrasena", type="password", key="rp2")
+            if st.button("Crear cuenta", key="btn_reg", use_container_width=True):
+                if not nombre or not email_r or not pw_r:
+                    st.error("Completa todos los campos")
+                elif pw_r != pw_r2:
+                    st.error("Las contrasenas no coinciden")
+                elif len(pw_r) < 6:
+                    st.error("Minimo 6 caracteres")
                 else:
-                    st.error("Error al registrar. Verifica la conexión a Firebase.")
+                    ok, msg = crear_cuenta(email_r, pw_r, nombre, rol_r)
+                    if ok: st.success("Cuenta creada. Ya puedes iniciar sesion.")
+                    else: st.error(msg)
 
-# ============================================================
-# PÁGINA: DASHBOARD PRINCIPAL
-# ============================================================
+# ── SIDEBAR ──
+def sidebar():
+    logo = get_logo()
+    logo_html = f'<img src="data:image/png;base64,{logo}" style="width:120px;height:120px;border-radius:50%;border:3px solid #34D399;margin-bottom:10px;">' if logo else ""
+    user = st.session_state.user
 
-def pagina_dashboard():
-    st.markdown("""
-    <div>
-        <span class='main-title'>⚡ BioVerify ESU</span><br>
-        <span class='sub-title'>Dispositivo portátil de verificación del electrobisturí · Universidad Politécnica Salesiana</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.divider()
-
-    # Controles
-    col_r, col_a, col_s = st.columns([1, 2, 3])
-    with col_r:
-        st.button("🔄 Actualizar", use_container_width=True)
-    with col_a:
-        auto_refresh = st.toggle("Auto-actualizar cada 5s", value=False)
-
-    # Cargar datos
-    data = get_firebase_data()
-    df = parse_pruebas(data)
-
-    with col_s:
-        if df.empty:
-            st.warning("⚠️ Sin datos en Firebase todavía")
-        else:
-            st.success(f"✅ {len(df)} prueba(s) registrada(s)")
-
-    if not df.empty:
-        # ── MÉTRICAS ──
-        st.subheader("📊 Resumen General")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            st.metric("Corriente RMS promedio", f"{df['corriente_rms'].mean():.3f} A", f"Máx: {df['corriente_rms'].max():.3f} A")
-        with c2:
-            st.metric("Temperatura promedio", f"{df['temperatura'].mean():.1f} °C", f"Máx: {df['temperatura'].max():.1f} °C")
-        with c3:
-            st.metric("Duración promedio", f"{df['duracion_seg'].mean():.1f} s")
-        with c4:
-            modos = df['modo'].value_counts()
-            st.metric("Pruebas de corte", int(modos.get("corte", 0)))
-        with c5:
-            st.metric("Pruebas de coagulación", int(modos.get("coagulacion", 0)))
-
-        st.divider()
-
-        # ── FILTROS ──
-        st.subheader("🔍 Filtros")
-        cf1, cf2 = st.columns(2)
-        with cf1:
-            equipos_disp = ["Todos"] + list(df["equipo"].unique())
-            equipo_sel = st.selectbox("Equipo", equipos_disp)
-        with cf2:
-            modos_disp = ["Todos"] + list(df["modo"].unique())
-            modo_sel = st.selectbox("Modo", modos_disp)
-
-        df_f = df.copy()
-        if equipo_sel != "Todos":
-            df_f = df_f[df_f["equipo"] == equipo_sel]
-        if modo_sel != "Todos":
-            df_f = df_f[df_f["modo"] == modo_sel]
-
-        st.divider()
-
-        # ── GRÁFICAS ──
-        st.subheader("📈 Análisis por Prueba")
-        cg1, cg2 = st.columns(2)
-
-        with cg1:
-            promedio = df_f["corriente_rms"].mean()
-            fig_c = go.Figure()
-            fig_c.add_trace(go.Bar(
-                x=df_f["prueba"], y=df_f["corriente_rms"],
-                marker_color="#00BCD4", text=df_f["corriente_rms"].round(3),
-                textposition="outside"
-            ))
-            fig_c.add_hline(y=promedio * 1.2, line_dash="dash", line_color="#F44336", annotation_text="+20% IEC")
-            fig_c.add_hline(y=promedio * 0.8, line_dash="dash", line_color="#FF9800", annotation_text="-20% IEC")
-            fig_c.update_layout(
-                title="Corriente RMS por Prueba",
-                xaxis_title="Prueba", yaxis_title="A",
-                paper_bgcolor="#0D1B2A", plot_bgcolor="#0D1B2A",
-                font_color="#E8EAF0", height=350, showlegend=False
-            )
-            st.plotly_chart(fig_c, use_container_width=True)
-
-        with cg2:
-            colores = ["#F44336" if t > 100 else "#FF9800" if t > 50 else "#4CAF50" for t in df_f["temperatura"]]
-            fig_t = go.Figure()
-            fig_t.add_trace(go.Bar(
-                x=df_f["prueba"], y=df_f["temperatura"],
-                marker_color=colores, text=df_f["temperatura"].round(1),
-                textposition="outside"
-            ))
-            fig_t.add_hline(y=50, line_dash="dash", line_color="#FF9800", annotation_text="50°C residual")
-            fig_t.add_hline(y=255, line_dash="dash", line_color="#F44336", annotation_text="255°C máx")
-            fig_t.update_layout(
-                title="Temperatura por Prueba",
-                xaxis_title="Prueba", yaxis_title="°C",
-                paper_bgcolor="#0D1B2A", plot_bgcolor="#0D1B2A",
-                font_color="#E8EAF0", height=350, showlegend=False
-            )
-            st.plotly_chart(fig_t, use_container_width=True)
-
-        st.divider()
-
-        # ── GAUGES ──
-        st.subheader("🎯 Última Medición")
-        cv1, cv2 = st.columns(2)
-        promedio_c = df_f["corriente_rms"].mean()
-        ultima_c = df_f["corriente_rms"].iloc[-1]
-        ultima_t = df_f["temperatura"].iloc[-1]
-
-        with cv1:
-            fig_gc = go.Figure(go.Indicator(
-                mode="gauge+number+delta",
-                value=ultima_c,
-                title={"text": "Corriente RMS (A)", "font": {"color": "#E8EAF0"}},
-                delta={"reference": promedio_c},
-                gauge={
-                    "axis": {"range": [0, df_f["corriente_rms"].max() * 1.5], "tickcolor": "#78909C"},
-                    "bar": {"color": "#00BCD4"},
-                    "bgcolor": "#0D1B2A",
-                    "steps": [
-                        {"range": [0, promedio_c * 0.8], "color": "#1A237E"},
-                        {"range": [promedio_c * 0.8, promedio_c * 1.2], "color": "#1B5E20"},
-                        {"range": [promedio_c * 1.2, df_f["corriente_rms"].max() * 1.5], "color": "#B71C1C"},
-                    ],
-                }
-            ))
-            fig_gc.update_layout(height=300, paper_bgcolor="#0D1B2A", font_color="#E8EAF0")
-            st.plotly_chart(fig_gc, use_container_width=True)
-
-        with cv2:
-            fig_gt = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=ultima_t,
-                title={"text": "Temperatura (°C)", "font": {"color": "#E8EAF0"}},
-                gauge={
-                    "axis": {"range": [0, 300], "tickcolor": "#78909C"},
-                    "bar": {"color": "#F44336"},
-                    "bgcolor": "#0D1B2A",
-                    "steps": [
-                        {"range": [0, 50], "color": "#1B5E20"},
-                        {"range": [50, 100], "color": "#E65100"},
-                        {"range": [100, 255], "color": "#B71C1C"},
-                        {"range": [255, 300], "color": "#4A0000"},
-                    ],
-                }
-            ))
-            fig_gt.update_layout(height=300, paper_bgcolor="#0D1B2A", font_color="#E8EAF0")
-            st.plotly_chart(fig_gt, use_container_width=True)
-
-        st.divider()
-
-        # ── ANÁLISIS ESTADÍSTICO IEC 60601-2-2 ──
-        st.subheader("📋 Análisis Estadístico · IEC 60601-2-2")
-
-        promedio_c = df_f["corriente_rms"].mean()
-        std_c = df_f["corriente_rms"].std()
-        cv_c = (std_c / promedio_c * 100) if promedio_c > 0 else 0
-
-        df_f = df_f.copy()
-        df_f["error_relativo_%"] = abs((df_f["corriente_rms"] - promedio_c) / promedio_c * 100).round(2)
-        df_f["cumple_norma"] = df_f["error_relativo_%"].apply(lambda x: "✅ Cumple" if x <= 20 else "❌ No cumple")
-
-        cs1, cs2, cs3, cs4 = st.columns(4)
-        with cs1:
-            st.metric("Corriente promedio", f"{promedio_c:.4f} A")
-        with cs2:
-            st.metric("Desviación estándar", f"{std_c:.4f} A")
-        with cs3:
-            st.metric("Coef. de variación", f"{cv_c:.2f} %")
-        with cs4:
-            cumple_count = (df_f["error_relativo_%"] <= 20).sum()
-            total = len(df_f)
-            color = "normal" if cumple_count == total else "inverse"
-            st.metric("Pruebas dentro del ±20%", f"{cumple_count}/{total}")
-
-        st.divider()
-
-        # ── TABLA ──
-        st.subheader("🗂️ Registro de Pruebas")
-        st.dataframe(
-            df_f[[
-                "equipo", "prueba", "fecha", "hora_inicio", "hora_fin",
-                "duracion_seg", "modo", "corriente_rms", "temperatura",
-                "error_relativo_%", "cumple_norma"
-            ]].rename(columns={
-                "equipo": "Equipo", "prueba": "Prueba", "fecha": "Fecha",
-                "hora_inicio": "Inicio", "hora_fin": "Fin",
-                "duracion_seg": "Duración (s)", "modo": "Modo",
-                "corriente_rms": "Corriente RMS (A)", "temperatura": "Temperatura (°C)",
-                "error_relativo_%": "Error (%)", "cumple_norma": "IEC 60601-2-2"
-            }),
-            use_container_width=True, hide_index=True
-        )
-
-        csv = df_f.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Descargar CSV",
-            data=csv,
-            file_name=f"bioVerify_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
-
-    else:
-        st.info("📡 Esperando datos del ESP32... Enciende el dispositivo y activa el electrobisturí.")
-
-    if auto_refresh:
-        time.sleep(5)
-        st.rerun()
-
-# ============================================================
-# MAIN - CONTROL DE SESIÓN
-# ============================================================
-
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-if not st.session_state.logged_in:
-    login_page()
-else:
-    # Sidebar
     with st.sidebar:
         st.markdown(f"""
-        <div style='padding: 16px 0;'>
-            <p style='color: #78909C; font-size: 0.8rem; margin: 0;'>Sesión activa</p>
-            <p style='color: #00BCD4; font-weight: 600; margin: 4px 0;'>{st.session_state.user_nombre}</p>
-            <p style='color: #546E7A; font-size: 0.75rem; margin: 0;'>{st.session_state.user_rol}</p>
+        <div class="sidebar-logo-wrap">
+            {logo_html}
+            <p class="sidebar-app-title">BioVerify ESU</p>
+            <p class="sidebar-app-sub">Verificacion de Electrobisturi</p>
+        </div>
+        <div class="user-info-box">
+            <p class="user-info-name">{user.get('nombre','Usuario')}</p>
+            <p class="user-info-role">{user.get('rol','')} · {user.get('email','')}</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        pagina = st.radio(
-            "Navegación",
-            ["📊 Dashboard", "➕ Nuevo Equipo"],
-            label_visibility="collapsed"
-        )
-        
-        st.divider()
-        
-        if st.button("🚪 Cerrar sesión", use_container_width=True):
+
+        nav = st.radio("", ["Panel principal","Equipos","Configuracion remota","Nuevo equipo"],
+                       label_visibility="collapsed")
+
+        st.markdown("---")
+        if st.button("Cerrar sesion", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
-        
-        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown(f'<p class="ts" style="padding:12px 0;text-align:center;">BioVerify ESU v3.0<br>Alison N. Parra Guano<br>UPS Biomedicina 2026</p>', unsafe_allow_html=True)
+    return nav
+
+# ── PANEL PRINCIPAL ──
+def panel_principal():
+    now = datetime.now().strftime("%d/%m/%Y  %H:%M:%S")
+    modo_config = fb_get("config/modo") or "standby"
+    tag_class = "modo-corte" if modo_config=="corte" else "modo-coag" if modo_config=="coagulacion" else "modo-standby"
+
+    st.markdown(f"""
+    <div class="page-header">
+        <div style="display:flex;align-items:center;">
+            <div>
+                <p class="page-title">Panel principal
+                    <span class="modo-tag {tag_class}">{modo_config.upper()}</span>
+                </p>
+                <p class="page-sub">Monitoreo en tiempo real · Norma IEC 60601-2-2</p>
+            </div>
+        </div>
+        <span class="ts">{now}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Selector de modo
+    cm1, cm2, cm3 = st.columns([1,1,4])
+    with cm1:
+        if st.button("CORTE", use_container_width=True):
+            fb_put("config/modo","corte")
+            st.rerun()
+    with cm2:
+        if st.button("COAGULACION", use_container_width=True):
+            fb_put("config/modo","coagulacion")
+            st.rerun()
+
+    df = parse_pruebas()
+
+    if df.empty:
         st.markdown("""
-        <p style='color: #37474F; font-size: 0.7rem; text-align: center;'>
-        BioVerify ESU v2.0<br>
-        Alison N. Parra Guano<br>
-        UPS · Biomedicina · 2026
-        </p>
+        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:48px;text-align:center;margin-top:16px;">
+            <p style="font-size:1.5rem;font-weight:700;color:#A0AEC0;margin:0">Sin datos del dispositivo</p>
+            <p style="color:#CBD5E1;font-size:0.85rem;margin:8px 0 0;">Verifica que el ESP32 este conectado al WiFi y enviando datos a Firebase.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    ultima = df.iloc[-1]
+    prom_c = df["corriente_rms"].mean()
+    error_c = abs((ultima["corriente_rms"] - prom_c) / prom_c * 100) if prom_c > 0 else 0
+    temp = ultima["temperatura"]
+
+    # Alarma
+    if temp >= TEMP_ROJA or error_c > ERROR_MAXIMO:
+        st.markdown(f'<div class="alarma-box alarma-roja"><strong>ALARMA CRITICA</strong> — {"Temperatura "+str(round(temp,1))+"°C supera limite de "+str(TEMP_ROJA)+"°C" if temp>=TEMP_ROJA else "Error de corriente "+str(round(error_c,1))+"% supera limite IEC 60601-2-2 (20%)"}</div>', unsafe_allow_html=True)
+    elif temp >= TEMP_AMARILLA or error_c > ERROR_MAXIMO * 0.75:
+        st.markdown(f'<div class="alarma-box alarma-amarilla"><strong>ADVERTENCIA</strong> — {"Calor residual "+str(round(temp,1))+"°C supera umbral de "+str(TEMP_AMARILLA)+"°C (Brinkmann 2022)" if temp>=TEMP_AMARILLA else "Error de corriente "+str(round(error_c,1))+"% aproximandose al limite IEC"}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="alarma-box alarma-verde"><strong>Sistema normal</strong> — Temperatura {round(temp,1)}°C · Error corriente {round(error_c,1)}% · Dentro de norma IEC 60601-2-2</div>', unsafe_allow_html=True)
+
+    # KPIs
+    color_c = "verde" if error_c <= 15 else "amarillo" if error_c <= ERROR_MAXIMO else "rojo"
+    color_t = "verde" if temp < TEMP_AMARILLA else "amarillo" if temp < TEMP_ROJA else "rojo"
+    color_card_c = "" if error_c <= 15 else "amarillo" if error_c <= ERROR_MAXIMO else "rojo"
+    color_card_t = "" if temp < TEMP_AMARILLA else "amarillo" if temp < TEMP_ROJA else "rojo"
+    cumple = (df["corriente_rms"].apply(lambda x: abs((x-prom_c)/prom_c*100) if prom_c>0 else 0) <= ERROR_MAXIMO).sum()
+
+    k1,k2,k3,k4,k5 = st.columns(5)
+    def kpi(col, label, val, unit, sub, card_c="", val_c=""):
+        with col:
+            st.markdown(f"""
+            <div class="kpi-card {card_c}">
+                <p class="kpi-label">{label}</p>
+                <p class="kpi-value {val_c}">{val}<span class="kpi-unit">{unit}</span></p>
+                <p class="kpi-sub">{sub}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    kpi(k1,"Corriente RMS",f"{ultima['corriente_rms']:.3f}","A",f"Error: {error_c:.1f}%",color_card_c,color_c)
+    kpi(k2,"Temperatura",f"{temp:.1f}","C",f"Umbral residual: {TEMP_AMARILLA}°C",color_card_t,color_t)
+    kpi(k3,"Potencia estimada",f"{ultima['potencia_w']:.0f}","W","I × Vred","azul","")
+    kpi(k4,"Pruebas totales",str(len(df)),"",f"Equipos: {df['equipo'].nunique()}","gris","")
+    kpi(k5,"Cumple IEC",f"{cumple}/{len(df)}","",f"Margen ±{ERROR_MAXIMO}%","" if cumple==len(df) else "amarillo","verde" if cumple==len(df) else "amarillo")
+
+    # Graficas
+    g1, g2 = st.columns(2)
+
+    with g1:
+        st.markdown('<div class="chart-card"><p class="chart-label">Corriente RMS por prueba (A)</p>', unsafe_allow_html=True)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=list(range(len(df))), y=df["corriente_rms"].tolist(),
+            mode="lines+markers",
+            line=dict(color="#059669", width=2.5),
+            marker=dict(size=7, color="#059669"),
+            fill="tozeroy", fillcolor="rgba(5,150,105,0.08)",
+            name="Corriente RMS"
+        ))
+        if prom_c > 0:
+            fig.add_hline(y=prom_c*1.2, line_dash="dash", line_color="#EF4444", line_width=1.5, annotation_text="+20% IEC", annotation_font_size=10)
+            fig.add_hline(y=prom_c*0.8, line_dash="dash", line_color="#F59E0B", line_width=1.5, annotation_text="-20% IEC", annotation_font_size=10)
+        fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#718096", height=200,
+            margin=dict(t=10,b=10,l=10,r=10), showlegend=False,
+            xaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(size=9)),
+            yaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(size=9))
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with g2:
+        st.markdown('<div class="chart-card"><p class="chart-label">Temperatura por prueba (°C)</p>', unsafe_allow_html=True)
+        fig2 = go.Figure()
+        colores_t = ["#DC2626" if t>=TEMP_ROJA else "#D97706" if t>=TEMP_AMARILLA else "#3B82F6" for t in df["temperatura"]]
+        fig2.add_trace(go.Scatter(
+            x=list(range(len(df))), y=df["temperatura"].tolist(),
+            mode="lines+markers",
+            line=dict(color="#3B82F6", width=2.5),
+            marker=dict(size=7, color=colores_t),
+            fill="tozeroy", fillcolor="rgba(59,130,246,0.08)",
+        ))
+        fig2.add_hline(y=TEMP_AMARILLA, line_dash="dash", line_color="#F59E0B", line_width=1.5, annotation_text=f"{TEMP_AMARILLA}°C", annotation_font_size=10)
+        fig2.add_hline(y=TEMP_ROJA, line_dash="dash", line_color="#EF4444", line_width=1.5, annotation_text=f"{TEMP_ROJA}°C", annotation_font_size=10)
+        fig2.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#718096", height=200,
+            margin=dict(t=10,b=10,l=10,r=10), showlegend=False,
+            xaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(size=9)),
+            yaxis=dict(showgrid=True, gridcolor="#E2E8F0", tickfont=dict(size=9))
+        )
+        st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar":False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Tabla compacta
+    df["error_%"] = df["corriente_rms"].apply(lambda x: round(abs((x-prom_c)/prom_c*100),2) if prom_c>0 else 0)
+    df["IEC"] = df["error_%"].apply(lambda x: "Cumple" if x<=ERROR_MAXIMO else "No cumple")
+
+    st.markdown('<div class="chart-card"><p class="chart-label">Registro de pruebas</p>', unsafe_allow_html=True)
+    cf1,cf2,cf3 = st.columns([2,2,2])
+    with cf1:
+        eq_sel = st.selectbox("Equipo",["Todos"]+list(df["equipo"].unique()),label_visibility="collapsed",key="f_eq")
+    with cf2:
+        mo_sel = st.selectbox("Modo",["Todos"]+list(df["modo"].unique()),label_visibility="collapsed",key="f_mo")
+    with cf3:
+        st.download_button("Descargar CSV",df.to_csv(index=False).encode("utf-8"),f"bioVerify_{datetime.now().strftime('%Y%m%d')}.csv","text/csv",use_container_width=True)
+
+    df_f = df.copy()
+    if eq_sel != "Todos": df_f = df_f[df_f["equipo"]==eq_sel]
+    if mo_sel != "Todos": df_f = df_f[df_f["modo"]==mo_sel]
+
+    st.dataframe(
+        df_f[["equipo","prueba","fecha","modo","corriente_rms","temperatura","potencia_w","error_%","IEC"]].rename(columns={
+            "equipo":"Equipo","prueba":"Prueba","fecha":"Fecha","modo":"Modo",
+            "corriente_rms":"Corriente (A)","temperatura":"Temp (°C)","potencia_w":"Potencia (W)",
+            "error_%":"Error (%)","IEC":"IEC 60601-2-2"
+        }),
+        use_container_width=True, hide_index=True, height=200
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ── EQUIPOS ──
+def pagina_equipos():
+    st.markdown('<div class="page-header"><div><p class="page-title">Equipos registrados</p><p class="page-sub">Inventario de generadores electroquirurgicos</p></div></div>', unsafe_allow_html=True)
+    data = fb_get("equipos")
+    if not data:
+        st.info("No hay equipos registrados.")
+        return
+    for eq_id, eq_data in data.items():
+        if not isinstance(eq_data, dict): continue
+        info = eq_data.get("info", {})
+        n = len(eq_data.get("pruebas", {}))
+        st.markdown(f"""
+        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:18px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <strong style="font-size:0.95rem;">{eq_id}</strong>
+                <span style="background:#ECFDF5;color:#059669;padding:3px 12px;border-radius:20px;font-size:0.72rem;font-weight:600;">{n} prueba(s)</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:0.78rem;">
+                <div><span style="color:#718096">Marca</span><br><strong>{info.get('marca','—')}</strong></div>
+                <div><span style="color:#718096">Modelo</span><br><strong>{info.get('modelo','—')}</strong></div>
+                <div><span style="color:#718096">Serie</span><br><strong>{info.get('serie','—')}</strong></div>
+                <div><span style="color:#718096">Ubicacion</span><br><strong>{info.get('ubicacion','—')}</strong></div>
+                <div><span style="color:#718096">Responsable</span><br><strong>{info.get('responsable','—')}</strong></div>
+                <div><span style="color:#718096">Ultimo mantenimiento</span><br><strong>{info.get('ultimo_mantenimiento','—')}</strong></div>
+                <div><span style="color:#718096">Tipo</span><br><strong>{info.get('tipo','—')}</strong></div>
+            </div>
+        </div>
         """, unsafe_allow_html=True)
 
-    if pagina == "📊 Dashboard":
-        pagina_dashboard()
-    elif pagina == "➕ Nuevo Equipo":
+# ── CONFIG REMOTA ──
+def pagina_config():
+    st.markdown('<div class="page-header"><div><p class="page-title">Configuracion remota</p><p class="page-sub">Ajuste de parametros del ESP32 via Firebase</p></div></div>', unsafe_allow_html=True)
+    cfg = fb_get("config") or {}
+
+    st.markdown('<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">', unsafe_allow_html=True)
+    c1,c2 = st.columns(2)
+    with c1:
+        vac = st.number_input("Voltaje de red (V)", 90.0, 250.0, float(cfg.get("gridVoltageConfig",110.0)), 1.0)
+        ofs = st.number_input("Offset ADC (V)", 0.0, 3.3, float(cfg.get("adcOffsetVolts",1.65)), 0.01, "%.2f")
+    with c2:
+        scl = st.number_input("Escala corriente", 0.1, 100.0, float(cfg.get("currentScale",11.4)), 0.1, "%.1f")
+        modo = st.selectbox("Modo", ["standby","corte","coagulacion"],
+            index=["standby","corte","coagulacion"].index(cfg.get("modo","standby")))
+
+    if st.button("Guardar en Firebase", use_container_width=True):
+        ok = fb_put("config", {"gridVoltageConfig":vac,"adcOffsetVolts":ofs,"currentScale":scl,"modo":modo,
+            "actualizado":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),"por":st.session_state.user.get("nombre","")})
+        st.success("Configuracion guardada. El ESP32 la aplicara en el proximo ciclo.") if ok else st.error("Error al guardar.")
+
+    st.markdown("""
+    <p style="font-size:0.78rem;color:#718096;margin-top:16px;line-height:1.8;">
+    El ESP32 lee estos valores desde Firebase cada 30 segundos y los aplica automaticamente.<br>
+    Los cambios se guardan en la EEPROM del dispositivo para persistir tras reinicios.
+    </p></div>""", unsafe_allow_html=True)
+
+# ── NUEVO EQUIPO ──
+def pagina_nuevo_equipo():
+    st.markdown('<div class="page-header"><div><p class="page-title">Nuevo equipo</p><p class="page-sub">Registrar generador electroquirurgico en Firebase</p></div></div>', unsafe_allow_html=True)
+    st.markdown('<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">', unsafe_allow_html=True)
+
+    with st.form("f_eq"):
+        c1,c2 = st.columns(2)
+        with c1:
+            nombre = st.text_input("Identificador *", placeholder="DINATECH-002")
+            marca = st.text_input("Marca *", placeholder="DINATECH, VALMED, ERBE")
+            modelo = st.text_input("Modelo", placeholder="ESU-300B")
+            serie = st.text_input("Numero de serie")
+        with c2:
+            ubicacion = st.text_input("Ubicacion", placeholder="Quirofano 3")
+            responsable = st.text_input("Responsable")
+            mant = st.date_input("Ultimo mantenimiento")
+            tipo = st.selectbox("Tipo", ["Electrobisturi real","Simulador de prueba","Laboratorio"])
+
+        if st.form_submit_button("Registrar equipo", use_container_width=True):
+            if not nombre or not marca:
+                st.error("Identificador y marca son obligatorios")
+            else:
+                ok = fb_put(f"equipos/{nombre}/info", {
+                    "marca":marca,"modelo":modelo,"serie":serie,
+                    "ubicacion":ubicacion,"responsable":responsable,
+                    "ultimo_mantenimiento":str(mant),"tipo":tipo,
+                    "por":st.session_state.user.get("nombre",""),
+                    "fecha":datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                st.success(f"Equipo {nombre} registrado.") if ok else st.error("Error al registrar.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ── MAIN ──
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user = {}
+
+if not st.session_state.logged_in:
+    pagina_login()
+else:
+    nav = sidebar()
+    if nav == "Panel principal":
+        panel_principal()
+    elif nav == "Equipos":
+        pagina_equipos()
+    elif nav == "Configuracion remota":
+        pagina_config()
+    elif nav == "Nuevo equipo":
         pagina_nuevo_equipo()
