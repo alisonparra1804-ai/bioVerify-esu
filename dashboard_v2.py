@@ -76,6 +76,76 @@ st.markdown("""
 
 * { font-family: 'Inter', sans-serif !important; }
 
+/* ── Fix inputs y selects fuera del sidebar ── */
+.stApp input, .stApp textarea {
+    background-color: #FFFFFF !important;
+    color: #1A202C !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 8px !important;
+}
+
+.stApp input::placeholder, .stApp textarea::placeholder {
+    color: #A0AEC0 !important;
+}
+
+.stApp input:focus, .stApp textarea:focus {
+    border-color: #0F3460 !important;
+    box-shadow: 0 0 0 2px rgba(15,52,96,0.15) !important;
+}
+
+/* Selectboxes fuera del sidebar */
+.stApp [data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    color: #1A202C !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 8px !important;
+}
+
+.stApp [data-baseweb="select"] span {
+    color: #1A202C !important;
+}
+
+/* Labels de inputs */
+.stApp label, .stApp .stTextInput label, 
+.stApp .stSelectbox label, .stApp .stNumberInput label {
+    color: #4A5568 !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+}
+
+/* Dropdown opciones */
+[data-baseweb="popover"] li {
+    color: #1A202C !important;
+    background-color: #FFFFFF !important;
+}
+
+[data-baseweb="popover"] li:hover {
+    background-color: #EFF6FF !important;
+}
+
+/* Tabs login */
+.stApp .stTabs [data-baseweb="tab"] {
+    color: #718096 !important;
+    background: transparent !important;
+}
+
+.stApp .stTabs [aria-selected="true"] {
+    color: #0F3460 !important;
+    border-bottom-color: #0F3460 !important;
+}
+
+/* Number inputs */
+.stApp [data-testid="stNumberInput"] input {
+    background-color: #FFFFFF !important;
+    color: #1A202C !important;
+}
+
+/* Date input */
+.stApp [data-testid="stDateInput"] input {
+    background-color: #FFFFFF !important;
+    color: #1A202C !important;
+}
+
 .stApp {
     background-color: #F0F4F8 !important;
     color: #1A202C !important;
