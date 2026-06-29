@@ -595,16 +595,20 @@ def panel_principal():
 
     # Tabla compacta — error calculado por fila usando potencia_perilla de cada prueba
     def error_por_fila(row):
-        pp = row.get("potencia_perilla", None)
-        modo = row.get("modo", "corte")
-        i_bv = row["corriente_rms"]
-        if pp is not None:
-            i_ref = get_referencia_esa620(modo, int(pp))
-        else:
-            i_ref = get_referencia_esa620(modo, potencia_perilla)
-        if i_ref and i_ref > 0:
-            return round(abs((i_bv - i_ref) / i_ref * 100), 2)
-        return round(abs((i_bv - prom_c) / prom_c * 100), 2) if prom_c > 0 else 0
+        try:
+            pp = row.get("potencia_perilla", None)
+            modo = row.get("modo", "corte") or "corte"
+            i_bv = float(row["corriente_rms"])
+            # Usa potencia_perilla de la fila si existe, si no usa la del selector
+            if pp is not None and str(pp).strip() not in ("", "None", "nan"):
+                i_ref = get_referencia_esa620(modo, int(float(pp)))
+            else:
+                i_ref = get_referencia_esa620(modo, potencia_perilla)
+            if i_ref and i_ref > 0:
+                return round(abs((i_bv - i_ref) / i_ref * 100), 2)
+            return round(abs((i_bv - prom_c) / prom_c * 100), 2) if prom_c > 0 else 0
+        except Exception:
+            return 0
 
     df["error_%"] = df.apply(error_por_fila, axis=1)
     df["IEC"] = df["error_%"].apply(lambda x: "Cumple" if x <= ERROR_MAXIMO else "No cumple")
