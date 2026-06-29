@@ -463,7 +463,46 @@ def panel_principal():
     </div>
     """, unsafe_allow_html=True)
 
-    # Selector de modo y potencia de perilla
+    # ── Fila 1: Selector de equipo + botón limpiar ──
+    df_all = parse_pruebas()
+    if df_all.empty:
+        st.markdown("""
+        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:48px;text-align:center;margin-top:16px;">
+            <p style="font-size:1.5rem;font-weight:700;color:#A0AEC0;margin:0">Sin datos del dispositivo</p>
+            <p style="color:#CBD5E1;font-size:0.85rem;margin:8px 0 0;">Verifica que el ESP32 este conectado al WiFi y enviando datos a Firebase.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    equipos_disponibles = sorted(df_all["equipo"].unique().tolist())
+
+    eq1, eq2, eq3 = st.columns([2, 1.5, 1])
+    with eq1:
+        equipo_sel = st.selectbox(
+            "Equipo",
+            options=equipos_disponibles,
+            key="equipo_sel",
+            help="Selecciona el equipo a monitorear"
+        )
+    with eq2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Limpiar vista", use_container_width=True, help="Resetea la seleccion y muestra solo la ultima medicion"):
+            for k in ["equipo_sel", "pot_perilla"]:
+                if k in st.session_state:
+                    del st.session_state[k]
+            st.rerun()
+    with eq3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:0.75rem;color:#718096;margin:6px 0 0;'>{len(df_all[df_all['equipo']==equipo_sel])} prueba(s)</p>", unsafe_allow_html=True)
+
+    # Filtrar por equipo seleccionado
+    df = df_all[df_all["equipo"] == equipo_sel].copy().reset_index(drop=True)
+
+    if df.empty:
+        st.info(f"No hay pruebas registradas para {equipo_sel}.")
+        return
+
+    # ── Fila 2: Selector de modo + potencia de perilla ──
     cm1, cm2, cm3, cm4 = st.columns([1, 1, 1.5, 2])
     with cm1:
         if st.button("CORTE", use_container_width=True):
@@ -477,23 +516,12 @@ def panel_principal():
         potencia_perilla = st.selectbox(
             "Potencia de perilla (W)",
             options=NIVELES_POTENCIA,
-            index=4,  # default 80W
+            index=4,
             key="pot_perilla",
             label_visibility="collapsed",
             help="Selecciona la potencia configurada en la perilla del electrobisturi"
         )
         st.markdown(f'<p style="font-size:0.7rem;color:#718096;margin:2px 0 0;text-align:center;">Perilla: {potencia_perilla} W</p>', unsafe_allow_html=True)
-
-    df = parse_pruebas()
-
-    if df.empty:
-        st.markdown("""
-        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:48px;text-align:center;margin-top:16px;">
-            <p style="font-size:1.5rem;font-weight:700;color:#A0AEC0;margin:0">Sin datos del dispositivo</p>
-            <p style="color:#CBD5E1;font-size:0.85rem;margin:8px 0 0;">Verifica que el ESP32 este conectado al WiFi y enviando datos a Firebase.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        return
 
     ultima = df.iloc[-1]
     temp = ultima["temperatura"]
