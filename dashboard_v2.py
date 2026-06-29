@@ -13,9 +13,12 @@ TEMP_AMARILLA = 50
 TEMP_ROJA = 255
 ERROR_MAXIMO = 20
 
-# ── TABLA DE REFERENCIA ESA620 (corriente medida por instrumento de referencia) ──
-# Formato: {modo: {potencia_W: corriente_referencia_A}}
-# Fuente: mediciones experimentales con Fluke True-RMS sobre electrobisturi DINATECH BC-50D
+# ── TABLA DE REFERENCIA ESA620 POR POTENCIA DE PERILLA ──
+# Formato: {modo: {potencia_perilla_W: corriente_ESA620_A}}
+# Fuente: mediciones experimentales con Fluke True-RMS sobre DINATECH BC-50D
+# El operador selecciona la potencia de perilla en el dashboard para
+# obtener la comparación correcta contra el ESA620.
+
 REF_ESA620 = {
     "corte": {
         10:  0.600,
@@ -45,19 +48,18 @@ REF_ESA620 = {
     }
 }
 
-def get_referencia_esa620(modo, potencia):
-    """Obtiene la corriente de referencia ESA620 para el nivel de potencia más cercano."""
-    refs = REF_ESA620.get(str(modo).lower(), {})
-    if not refs:
-        return None
-    pot_cercana = min(refs.keys(), key=lambda x: abs(x - potencia))
-    if abs(pot_cercana - potencia) <= 20:
-        return refs[pot_cercana]
-    return None
+NIVELES_POTENCIA = [10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
 
-def calcular_error(corriente_medida, modo, potencia):
-    """Calcula error relativo contra referencia ESA620."""
-    i_ref = get_referencia_esa620(modo, potencia)
+def get_referencia_esa620(modo, potencia_perilla):
+    """Obtiene la corriente de referencia ESA620 para la potencia de perilla seleccionada."""
+    refs = REF_ESA620.get(str(modo).lower(), {})
+    return refs.get(int(potencia_perilla), None)
+
+def calcular_error(corriente_medida, modo, potencia_perilla=None):
+    """Calcula error relativo comparando corriente medida vs referencia ESA620."""
+    if potencia_perilla is None:
+        return None
+    i_ref = get_referencia_esa620(modo, potencia_perilla)
     if i_ref and i_ref > 0:
         return round(abs((corriente_medida - i_ref) / i_ref * 100), 2)
     return None
@@ -442,16 +444,26 @@ def panel_principal():
     </div>
     """, unsafe_allow_html=True)
 
-    # Selector de modo
-    cm1, cm2, cm3 = st.columns([1,1,4])
+    # Selector de modo y potencia de perilla
+    cm1, cm2, cm3, cm4 = st.columns([1, 1, 1.5, 2])
     with cm1:
         if st.button("CORTE", use_container_width=True):
-            fb_put("config/modo","corte")
+            fb_put("config/modo", "corte")
             st.rerun()
     with cm2:
         if st.button("COAGULACION", use_container_width=True):
-            fb_put("config/modo","coagulacion")
+            fb_put("config/modo", "coagulacion")
             st.rerun()
+    with cm3:
+        potencia_perilla = st.selectbox(
+            "Potencia de perilla (W)",
+            options=NIVELES_POTENCIA,
+            index=4,  # default 80W
+            key="pot_perilla",
+            label_visibility="collapsed",
+            help="Selecciona la potencia configurada en la perilla del electrobisturi"
+        )
+        st.markdown(f'<p style="font-size:0.7rem;color:#718096;margin:2px 0 0;text-align:center;">Perilla: {potencia_perilla} W</p>', unsafe_allow_html=True)
 
     df = parse_pruebas()
 
@@ -467,11 +479,12 @@ def panel_principal():
     ultima = df.iloc[-1]
     temp = ultima["temperatura"]
 
-    # Error calculado contra referencia ESA620
-    i_ref_ultima = get_referencia_esa620(ultima.get("modo","corte"), ultima.get("potencia_w", 0))
+    # Error calculado contra referencia ESA620 usando potencia de perilla seleccionada
+    modo_actual = ultima.get("modo", modo_config)
+    i_ref_ultima = get_referencia_esa620(modo_actual, potencia_perilla)
     if i_ref_ultima and i_ref_ultima > 0:
         error_c = abs((ultima["corriente_rms"] - i_ref_ultima) / i_ref_ultima * 100)
-        prom_c = i_ref_ultima  # referencia ESA620 como base para las líneas del gráfico
+        prom_c = i_ref_ultima
     else:
         prom_c = df["corriente_rms"].mean()
         error_c = abs((ultima["corriente_rms"] - prom_c) / prom_c * 100) if prom_c > 0 else 0
@@ -563,9 +576,11 @@ def panel_principal():
 
     # Tabla compacta
     df["error_%"] = df.apply(
-        lambda row: calcular_error(row["corriente_rms"], row.get("modo","corte"), row.get("potencia_w",0)) 
-                    if calcular_error(row["corriente_rms"], row.get("modo","corte"), row.get("potencia_w",0)) is not None
-                    else round(abs((row["corriente_rms"] - prom_c) / prom_c * 100), 2) if prom_c > 0 else 0,
+        lambda row: round(
+            abs((row["corriente_rms"] - get_referencia_esa620(row.get("modo","corte"), potencia_perilla)) /
+                get_referencia_esa620(row.get("modo","corte"), potencia_perilla) * 100), 2
+        ) if get_referencia_esa620(row.get("modo","corte"), potencia_perilla) else
+        round(abs((row["corriente_rms"] - prom_c) / prom_c * 100), 2) if prom_c > 0 else 0,
         axis=1
     )
     df["IEC"] = df["error_%"].apply(lambda x: "Cumple" if x <= ERROR_MAXIMO else "No cumple")
