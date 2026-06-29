@@ -13,6 +13,55 @@ TEMP_AMARILLA = 50
 TEMP_ROJA = 255
 ERROR_MAXIMO = 20
 
+# ── TABLA DE REFERENCIA ESA620 (corriente medida por instrumento de referencia) ──
+# Formato: {modo: {potencia_W: corriente_referencia_A}}
+# Fuente: mediciones experimentales con Fluke True-RMS sobre electrobisturi DINATECH BC-50D
+REF_ESA620 = {
+    "corte": {
+        10:  0.600,
+        20:  0.800,
+        40:  0.900,
+        60:  1.500,
+        80:  1.900,
+        100: 1.900,
+        120: 1.925,
+        140: 2.000,
+        160: 2.650,
+        180: 2.580,
+        200: 3.000,
+    },
+    "coagulacion": {
+        10:  0.400,
+        20:  0.400,
+        40:  0.750,
+        60:  0.750,
+        80:  1.300,
+        100: 1.300,
+        120: 1.650,
+        140: 1.633,
+        160: 2.500,
+        180: 1.200,
+        200: 3.000,
+    }
+}
+
+def get_referencia_esa620(modo, potencia):
+    """Obtiene la corriente de referencia ESA620 para el nivel de potencia más cercano."""
+    refs = REF_ESA620.get(str(modo).lower(), {})
+    if not refs:
+        return None
+    pot_cercana = min(refs.keys(), key=lambda x: abs(x - potencia))
+    if abs(pot_cercana - potencia) <= 20:
+        return refs[pot_cercana]
+    return None
+
+def calcular_error(corriente_medida, modo, potencia):
+    """Calcula error relativo contra referencia ESA620."""
+    i_ref = get_referencia_esa620(modo, potencia)
+    if i_ref and i_ref > 0:
+        return round(abs((corriente_medida - i_ref) / i_ref * 100), 2)
+    return None
+
 st.set_page_config(
     page_title="BioVerify ESU",
     layout="wide",
@@ -416,9 +465,16 @@ def panel_principal():
         return
 
     ultima = df.iloc[-1]
-    prom_c = df["corriente_rms"].mean()
-    error_c = abs((ultima["corriente_rms"] - prom_c) / prom_c * 100) if prom_c > 0 else 0
     temp = ultima["temperatura"]
+
+    # Error calculado contra referencia ESA620
+    i_ref_ultima = get_referencia_esa620(ultima.get("modo","corte"), ultima.get("potencia_w", 0))
+    if i_ref_ultima and i_ref_ultima > 0:
+        error_c = abs((ultima["corriente_rms"] - i_ref_ultima) / i_ref_ultima * 100)
+        prom_c = i_ref_ultima  # referencia ESA620 como base para las líneas del gráfico
+    else:
+        prom_c = df["corriente_rms"].mean()
+        error_c = abs((ultima["corriente_rms"] - prom_c) / prom_c * 100) if prom_c > 0 else 0
 
     # Alarma
     if temp >= TEMP_ROJA or error_c > ERROR_MAXIMO:
@@ -433,7 +489,10 @@ def panel_principal():
     color_t = "verde" if temp < TEMP_AMARILLA else "amarillo" if temp < TEMP_ROJA else "rojo"
     color_card_c = "" if error_c <= 15 else "amarillo" if error_c <= ERROR_MAXIMO else "rojo"
     color_card_t = "" if temp < TEMP_AMARILLA else "amarillo" if temp < TEMP_ROJA else "rojo"
-    cumple = (df["corriente_rms"].apply(lambda x: abs((x-prom_c)/prom_c*100) if prom_c>0 else 0) <= ERROR_MAXIMO).sum()
+    cumple = df.apply(
+        lambda row: calcular_error(row["corriente_rms"], row.get("modo","corte"), row.get("potencia_w",0)) or 0,
+        axis=1
+    ).apply(lambda e: e <= ERROR_MAXIMO).sum()
 
     k1,k2,k3,k4,k5 = st.columns(5)
     def kpi(col, label, val, unit, sub, card_c="", val_c=""):
@@ -503,8 +562,13 @@ def panel_principal():
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Tabla compacta
-    df["error_%"] = df["corriente_rms"].apply(lambda x: round(abs((x-prom_c)/prom_c*100),2) if prom_c>0 else 0)
-    df["IEC"] = df["error_%"].apply(lambda x: "Cumple" if x<=ERROR_MAXIMO else "No cumple")
+    df["error_%"] = df.apply(
+        lambda row: calcular_error(row["corriente_rms"], row.get("modo","corte"), row.get("potencia_w",0)) 
+                    if calcular_error(row["corriente_rms"], row.get("modo","corte"), row.get("potencia_w",0)) is not None
+                    else round(abs((row["corriente_rms"] - prom_c) / prom_c * 100), 2) if prom_c > 0 else 0,
+        axis=1
+    )
+    df["IEC"] = df["error_%"].apply(lambda x: "Cumple" if x <= ERROR_MAXIMO else "No cumple")
 
     st.markdown('<div class="chart-card"><p class="chart-label">Registro de pruebas</p>', unsafe_allow_html=True)
     cf1,cf2,cf3 = st.columns([2,2,2])
