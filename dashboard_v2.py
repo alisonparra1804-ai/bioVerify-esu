@@ -528,7 +528,13 @@ def panel_principal():
 
     # Error calculado contra referencia ESA620 usando potencia de perilla seleccionada
     modo_actual = ultima.get("modo", modo_config)
-    i_ref_ultima = get_referencia_esa620(modo_actual, potencia_perilla)
+    # Usa potencia_perilla de la ultima prueba si existe, si no usa el selector
+    pp_ultima = ultima.get("potencia_perilla", None)
+    if pp_ultima is not None and str(pp_ultima).strip() not in ("", "None", "nan"):
+        pp_para_alarma = int(float(pp_ultima))
+    else:
+        pp_para_alarma = potencia_perilla
+    i_ref_ultima = get_referencia_esa620(modo_actual, pp_para_alarma)
     if i_ref_ultima and i_ref_ultima > 0:
         error_c = abs((ultima["corriente_rms"] - i_ref_ultima) / i_ref_ultima * 100)
         prom_c = i_ref_ultima
