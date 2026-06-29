@@ -298,14 +298,32 @@ def fb_put(path, data):
         return r.status_code == 200
     except: return False
 
+# Mapeo fijo prueba -> potencia de perilla del electrobisturi
+# Corte:       prueba_001..011 = 10,20,40,60,80,100,120,140,160,180,200 W
+# Coagulacion: prueba_013..023 = 10,20,40,60,80,100,120,140,160,180,200 W
+MAPEO_POTENCIA_PERILLA = {
+    "BC-50D": {
+        "prueba_001": 10,  "prueba_002": 20,  "prueba_003": 40,
+        "prueba_004": 60,  "prueba_005": 80,  "prueba_006": 100,
+        "prueba_007": 120, "prueba_008": 140, "prueba_009": 160,
+        "prueba_010": 180, "prueba_011": 200,
+        "prueba_013": 10,  "prueba_014": 20,  "prueba_015": 40,
+        "prueba_016": 60,  "prueba_017": 80,  "prueba_018": 100,
+        "prueba_019": 120, "prueba_020": 140, "prueba_021": 160,
+        "prueba_022": 180, "prueba_023": 200,
+    }
+}
+
 def parse_pruebas():
     data = fb_get("equipos")
     rows = []
     if not data: return pd.DataFrame()
     for eq_id, eq_data in data.items():
         if not isinstance(eq_data, dict): continue
+        mapeo = MAPEO_POTENCIA_PERILLA.get(eq_id, {})
         for pr_id, pr in eq_data.get("pruebas", {}).items():
             if not isinstance(pr, dict): continue
+            pot_perilla = pr.get("potencia_perilla", mapeo.get(pr_id, None))
             rows.append({
                 "equipo": eq_id, "prueba": pr_id,
                 "fecha": pr.get("fecha",""),
@@ -313,6 +331,7 @@ def parse_pruebas():
                 "corriente_rms": float(pr.get("corriente_rms", 0)),
                 "temperatura": float(pr.get("temperatura", 0)),
                 "potencia_w": float(pr.get("potencia_w", pr.get("corriente_rms",0) * 110)),
+                "potencia_perilla": int(pot_perilla) if pot_perilla is not None else None,
                 "duracion_seg": float(str(pr.get("duracion_seg",0)).strip()),
             })
     return pd.DataFrame(rows)
@@ -574,15 +593,20 @@ def panel_principal():
         st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar":False})
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Tabla compacta
-    df["error_%"] = df.apply(
-        lambda row: round(
-            abs((row["corriente_rms"] - get_referencia_esa620(row.get("modo","corte"), potencia_perilla)) /
-                get_referencia_esa620(row.get("modo","corte"), potencia_perilla) * 100), 2
-        ) if get_referencia_esa620(row.get("modo","corte"), potencia_perilla) else
-        round(abs((row["corriente_rms"] - prom_c) / prom_c * 100), 2) if prom_c > 0 else 0,
-        axis=1
-    )
+    # Tabla compacta — error calculado por fila usando potencia_perilla de cada prueba
+    def error_por_fila(row):
+        pp = row.get("potencia_perilla", None)
+        modo = row.get("modo", "corte")
+        i_bv = row["corriente_rms"]
+        if pp is not None:
+            i_ref = get_referencia_esa620(modo, int(pp))
+        else:
+            i_ref = get_referencia_esa620(modo, potencia_perilla)
+        if i_ref and i_ref > 0:
+            return round(abs((i_bv - i_ref) / i_ref * 100), 2)
+        return round(abs((i_bv - prom_c) / prom_c * 100), 2) if prom_c > 0 else 0
+
+    df["error_%"] = df.apply(error_por_fila, axis=1)
     df["IEC"] = df["error_%"].apply(lambda x: "Cumple" if x <= ERROR_MAXIMO else "No cumple")
 
     st.markdown('<div class="chart-card"><p class="chart-label">Registro de pruebas</p>', unsafe_allow_html=True)
@@ -599,9 +623,10 @@ def panel_principal():
     if mo_sel != "Todos": df_f = df_f[df_f["modo"]==mo_sel]
 
     st.dataframe(
-        df_f[["equipo","prueba","fecha","modo","corriente_rms","temperatura","potencia_w","error_%","IEC"]].rename(columns={
+        df_f[["equipo","prueba","fecha","modo","potencia_perilla","corriente_rms","temperatura","potencia_w","error_%","IEC"]].rename(columns={
             "equipo":"Equipo","prueba":"Prueba","fecha":"Fecha","modo":"Modo",
-            "corriente_rms":"Corriente (A)","temperatura":"T. Residual (°C)","potencia_w":"Potencia (W)",
+            "potencia_perilla":"Perilla (W)","corriente_rms":"Corriente (A)",
+            "temperatura":"T. Residual (°C)","potencia_w":"Potencia red (W)",
             "error_%":"Error (%)","IEC":"IEC 60601-2-2"
         }),
         use_container_width=True, hide_index=True, height=200
